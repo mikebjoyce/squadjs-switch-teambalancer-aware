@@ -372,15 +372,15 @@ export default class Switch extends DiscordBasePlugin {
                 return;
             }
 
-            try {
+           try {
+                await this.switchPlayer(steamID);
                 await this.options.database.transaction({ type: Sequelize.Transaction.TYPES.IMMEDIATE }, async (t) => {
                     await this.models.PlayerCooldowns.upsert({ steamID, playerName, lastSwitchTimestamp: new Date() }, { transaction: t });
                 });
             } catch (err) {
-                this.verbose(1, `Error saving switch timestamp: ${err.message}`);
+                this.verbose(1, `Error executing switch: ${err.message}`);
+                this.warn(steamID, "⚠️ Team switch failed. Please try again or contact an admin.");
             }
-
-            this.switchPlayer(steamID);
         }
     }
 
@@ -674,7 +674,7 @@ export default class Switch extends DiscordBasePlugin {
                 const channel = await this.options.discordClient.channels.fetch(this.options.discordChannelID);
                 if (channel) {
                     const embed = {
-                        title: 'Scramble Lockout Initiated',
+                        title: '🚨 Scramble Lockout Initiated',
                         description: `${affectedPlayers.length} players barred for ${this.options.scrambleLockdownDurationMinutes} minutes.`,
                         color: 0xFF0000,
                         timestamp: new Date()
@@ -729,7 +729,7 @@ export default class Switch extends DiscordBasePlugin {
             }).join('\n') || 'None';
 
             const embed = {
-                title: 'Switch Plugin Diagnostics',
+                title: '📊 Switch Plugin Diagnostics',
                 color: 0x3498db,
                 fields: [
                     { name: 'DB Status', value: diag.dbStatus, inline: true },
@@ -749,30 +749,30 @@ export default class Switch extends DiscordBasePlugin {
             if (!result) {
                 message.reply('Player not found in database.');
             } else if (result === 'multiple') {
-                message.reply('Multiple players found. Please use SteamID.');
+                message.reply('⚠️ Ambiguous result: Multiple matches found. Please refine your search string or use a SteamID.');
             } else {
                 const now = new Date();
                 let desc = `**SteamID:** ${result.steamID}\n**Name:** ${result.playerName || 'Unknown'}\n`;
                 
                 if (result.scrambleLockdownExpiry && result.scrambleLockdownExpiry > now) {
-                    desc += `**Scramble Lock:** <t:${Math.floor(result.scrambleLockdownExpiry.getTime()/1000)}:R>\n`;
+                    desc += `🔴 **Scramble Lock:** <t:${Math.floor(result.scrambleLockdownExpiry.getTime()/1000)}:R>\n`;
                 } else {
-                    desc += `**Scramble Lock:** None\n`;
+                    desc += `🟢 **Scramble Lock:** None\n`;
                 }
 
                 if (result.lastSwitchTimestamp) {
                     const cooldownDuration = this.options.switchCooldownMinutes ? this.options.switchCooldownMinutes * 60 * 1000 : this.options.switchCooldownHours * 60 * 60 * 1000;
                     const nextSwitch = new Date(result.lastSwitchTimestamp.getTime() + cooldownDuration);
                     if (nextSwitch > now) {
-                        desc += `**Switch Cooldown:** <t:${Math.floor(nextSwitch.getTime()/1000)}:R>\n`;
+                        desc += `🔴 **Switch Cooldown:** <t:${Math.floor(nextSwitch.getTime()/1000)}:R>\n`;
                     } else {
-                        desc += `**Switch Cooldown:** Ready\n`;
+                        desc += `🟢 **Switch Cooldown:** Ready\n`;
                     }
                 } else {
-                    desc += `**Switch Cooldown:** Ready\n`;
+                    desc += `🟢 **Switch Cooldown:** Ready\n`;
                 }
 
-                message.channel.send({ embeds: [{ title: 'Player Status', description: desc, color: 0x3498db }] });
+                message.channel.send({ embeds: [{ title: '🔍 Player Status', description: desc, color: 0x3498db }] });
             }
         } else if (subCommand === 'clear') {
             const ident = args.slice(2).join(' ');
@@ -788,15 +788,15 @@ export default class Switch extends DiscordBasePlugin {
             await this.options.database.transaction({ type: Sequelize.Transaction.TYPES.IMMEDIATE }, async (t) => {
                 await this.models.PlayerCooldowns.destroy({ where: { steamID: result.steamID }, transaction: t });
             });
-            message.reply(`Cleared cooldowns for **${result.playerName || result.steamID}**.`);
+            message.reply(`✅ Cleared cooldowns for **${result.playerName || result.steamID}**.`);
         } else if (subCommand === 'clearall') {
             await this.options.database.transaction({ type: Sequelize.Transaction.TYPES.IMMEDIATE }, async (t) => {
                 await this.models.PlayerCooldowns.destroy({ where: {}, truncate: true, transaction: t });
             });
-            message.reply('All player cooldowns cleared.');
+            message.reply('🗑️ All player cooldowns cleared.');
         } else if (subCommand === 'help') {
             const embed = {
-                title: 'Switch Plugin Commands',
+                title: '📜 Switch Plugin Commands',
                 description: 'Available commands:',
                 fields: [
                     { name: '!switch diag', value: 'Show database diagnostics and active locks.' },
