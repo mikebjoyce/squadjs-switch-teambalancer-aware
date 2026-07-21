@@ -6,6 +6,18 @@
 
 Manages player team-change requests with cooldown enforcement and admin restrictions. Survives server restarts via any Sequelize-compatible database (SQLite, MySQL, PostgreSQL, etc.). Responds to team scrambles by locking all players from switching.
 
+---
+
+> [!IMPORTANT]
+> **This repository has moved.** Active development (S³-integrated) continues at the monorepo:
+> **[sqaudjs-slackers-suite](https://github.com/mikebjoyce/squadjs-slackers-suite)**
+>
+> The `legacy` branch here is the **pre-S³** line — maintained for users who don't run S³.
+> The `main` branch (and any S³-integration branch) is superseded by the monorepo copy.
+> For new installations, use the monorepo's [install script](https://github.com/mikebjoyce/squadjs-slackers-suite) instead.
+
+---
+
 ## Features
 
 * **Persistent cooldowns** — stored in configured database, survive restarts
