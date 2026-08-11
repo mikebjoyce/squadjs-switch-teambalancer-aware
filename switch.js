@@ -175,11 +175,6 @@ export default class Switch extends DiscordBasePlugin {
         this._knownConnectedPlayers = new Map();
         // Set<eosID> — tracks which players have already been processed for switchToPreDisconnectionTeam (prevents double-fire)
         this._switchedOnJoin = new Set();
-        // Flag: true during the ~30s window after NEW_GAME where players may have null teamID
-        this._nullTeamIDWindowActive = false;
-        // Timeout handle for safety fallback (60s) to clear null-teamID window
-        this._nullTeamIDWindowTimeout = null;
-
         // Layer tracking for liberal mode detection
         this.currentLayerName = null;
         this.currentGamemode = null;
@@ -523,13 +518,6 @@ export default class Switch extends DiscordBasePlugin {
                     return;
             }
         } else {
-            // Issue 7: Gate !switch commands during null-teamID window (per §3 of reference doc)
-            if (this._nullTeamIDWindowActive) {
-                this.warn(eosID, 'Server is transitioning between rounds. Team assignments are still resolving. Please try again in a moment.');
-                this.verbose(1, `[Switch] Denied ${playerName}: Null-teamID window active.`);
-                return;
-            }
-
             await this.server.updateSquadList();
             await this.server.updatePlayerList();
 
@@ -691,7 +679,14 @@ export default class Switch extends DiscordBasePlugin {
         this.recentDisconnections = {};
         this._switchedOnJoin.clear();
         // Do NOT clear _knownConnectedPlayers — keep state across rounds per §5 resilient pattern
-        // Do NOT manually flip teamID — trust UPDATED_PLAYER_INFORMATION + PLAYER_TEAM_CHANGE
+        // Flip teamIDs for all players between rounds — Squad swaps sides each round
+        for (let p of this.server.players)
+            p.teamID = p.teamID == 1 ? 2 : 1;
+        // Also flip _knownConnectedPlayers to keep it in sync with server.players
+        for (const [, data] of this._knownConnectedPlayers) {
+            if (data.teamID === 1 || data.teamID === 2)
+                data.teamID = data.teamID === 1 ? 2 : 1;
+        }
     }
 
     getTeamBalanceDifference() {
@@ -841,9 +836,7 @@ export default class Switch extends DiscordBasePlugin {
      * Implements the resilient plugin pattern (§5 of reference doc):
      * 1. Maintains _knownConnectedPlayers as Map<eosID, {teamID, name}>.
      * 2. Delta-diffs against server.players to detect NEW players and LEAVERS.
-     * 3. Gated by _nullTeamIDWindowActive — skips polls while any player has null teamID
-     *    (transient period after NEW_GAME, per §3).
-     * 4. All handlers idempotent: PLAYER_CONNECTED may race this; both guard via _switchedOnJoin.
+     * 3. All handlers idempotent: PLAYER_CONNECTED may race this; both guard via _switchedOnJoin.
      *
      * New players: register first-seen timestamp in memory + DB, trigger
      * switchToPreDisconnectionTeam if rejoin-to-old-team is enabled.
@@ -856,15 +849,6 @@ export default class Switch extends DiscordBasePlugin {
      */
     async onUpdatedPlayerInfo(info) {
         if (!this.server.players) return;
-        
-        // Skip processing if null-teamID window is active (per §3 of reference doc)
-        if (this._nullTeamIDWindowActive) {
-            const anyNull = this.server.players.some(p => p.teamID === null);
-            if (anyNull) return; // Still in transition, skip this poll
-            // Window is over, clear flag and proceed
-            this._nullTeamIDWindowActive = false;
-            clearTimeout(this._nullTeamIDWindowTimeout);
-        }
         
         // Build set of current eosIDs for delta-diff (new / existing / missing)
         const currentEosIDs = new Set(this.server.players.map(p => p.eosID).filter(Boolean));
@@ -1195,20 +1179,11 @@ export default class Switch extends DiscordBasePlugin {
     }
 
     onNewGame() {
-        // Issue 6: Set null-teamID window flag at NEW_GAME (per §3 of reference doc)
-        this._nullTeamIDWindowActive = true;
-        clearTimeout(this._nullTeamIDWindowTimeout);
-        // Set safety fallback: clear flag after 60 seconds if not cleared by UPDATED_PLAYER_INFORMATION
-        this._nullTeamIDWindowTimeout = setTimeout(() => {
-            this._nullTeamIDWindowActive = false;
-            this.verbose(1, '[NEW_GAME] Null-teamID window safety timeout triggered.');
-        }, 60_000);
-        
         // Clear layer cache for new round (will be populated by UPDATED_LAYER_INFORMATION)
         this.currentLayerName = null;
         this.currentGamemode = null;
         
-        this.verbose(1, '[NEW_GAME] Null-teamID window opened (players may have null teamID for up to 30s).');
+        this.verbose(1, '[NEW_GAME] New game started, layer cache cleared.');
     }
 
     async unmount() {
@@ -1221,7 +1196,6 @@ export default class Switch extends DiscordBasePlugin {
         this.server.removeListener('UPDATED_LAYER_INFORMATION', this.onUpdatedLayerInfo);
         this.server.removeListener('UPDATED_SERVER_INFORMATION', this.onServerInfoUpdated);
         if (this.options.discordClient) this.options.discordClient.removeListener('message', this.onDiscordMessage);
-        clearTimeout(this._nullTeamIDWindowTimeout);
         this.verbose(1, 'Switch plugin was un-mounted.');
     }
 

@@ -18,7 +18,6 @@ Manages player team-change requests with cooldown enforcement and admin restrict
 * **Double switch** — `!bug` / `!stuck` commands swap a player to the opposite team and back (fixes stuck/bugged states without changing teams)
 * **Squad-level operations** — switch, double-switch, or queue entire squads in one command
 * **Pre-disconnection team rejoining** — optionally auto-switch players back to their old team on reconnect
-* **Null-teamID safety window** — gates switch commands during round transitions when team assignments are still resolving
 * **Admin controls** — in-game chat and Discord
 
 ## Commands
@@ -76,11 +75,11 @@ Manages player team-change requests with cooldown enforcement and admin restrict
     "maxUnbalancedSlots": 5,
     "switchToOldTeamAfterRejoin": false,
     "scrambleLockdownDurationMinutes": 20,
-    "liberalModes": ["seed", "jensen"],
-    "liberalSwitchMaxUnbalancedSlots": 10,
+    "liberalSwitchGameModes": ["Seed", "Jensen"],
+    "liberalSwitchMaxUnbalancedSlots": 6,
     "dynamicBalanceTolerance": false,
-    "dynamicBalancePlayerFloor": 40,
-    "dynamicBalanceExtraSlots": 3
+    "dynamicBalancePlayerFloor": 90,
+    "dynamicBalanceExtraSlots": 2
 }
 ```
 
@@ -107,13 +106,13 @@ Manages player team-change requests with cooldown enforcement and admin restrict
 - `doubleSwitchEnabledMinutes` — time window for double switch. Default: `5`
 
 **Liberal Mode (Seed/Jensen):**
-- `liberalModes` — array of mode name substrings that trigger relaxed switching. Default: `["seed", "jensen"]`
-- `liberalSwitchMaxUnbalancedSlots` — relaxed balance cap used in liberal mode. Default: `10`
+- `liberalSwitchGameModes` — array of mode name substrings that trigger relaxed switching. Default: `["Seed", "Jensen"]`
+- `liberalSwitchMaxUnbalancedSlots` — relaxed balance cap used in liberal mode. Default: `6`
 
 **Dynamic Balance Tolerance:**
 - `dynamicBalanceTolerance` — enable interpolated extra switch slots that scale down as player count rises. Default: `false`
-- `dynamicBalancePlayerFloor` — player count below which full extra slots apply. Default: `40`
-- `dynamicBalanceExtraSlots` — maximum extra tolerance slots at the floor. Default: `3`
+- `dynamicBalancePlayerFloor` — player count below which full extra slots apply. Default: `90`
+- `dynamicBalanceExtraSlots` — maximum extra tolerance slots at the floor. Default: `2`
 
 **Advanced:**
 - `endMatchSwitchSlots` — queue size for end-of-round switches. Default: `3`
