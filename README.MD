@@ -8,21 +8,51 @@ Manages player team-change requests with cooldown enforcement, scramble-aware lo
 
 Survives server restarts via any Sequelize-compatible database (SQLite, MySQL, PostgreSQL, etc.). Supports in-game chat commands and Discord admin commands with real-time eligibility diagnostics.
 
----
+* **Persistent cooldowns** — stored in configured database, survive restarts
+* **Multi-database support** — works with SQLite, MySQL, PostgreSQL, and any Sequelize-compatible backend
+* **Scramble lockout** — blocks all players from switching for configurable duration after scramble
+* **Liberal mode** — relaxed cooldown/time limits on Seed/Jensen layers for low-population flexibility
+* **Dynamic balance tolerance** — interpolated extra switch slots that scale down as player count rises
+* **50v50 ceiling** — prevents any team from exceeding 50 players via switch
+* **Match-end switch queue** — queue individual players or entire squads for automatic switch at round end
+* **Double switch** — `!bug` / `!stuck` commands swap a player to the opposite team and back (fixes stuck/bugged states without changing teams)
+* **Squad-level operations** — switch, double-switch, or queue entire squads in one command
+* **Pre-disconnection team rejoining** — optionally auto-switch players back to their old team on reconnect
+* **Admin controls** — in-game chat and Discord
 
 ## Core Features
 
-* **Persistent Cooldowns** — stored in configured database, survive restarts
-* **Multi-Database Support** — works with SQLite, MySQL, PostgreSQL, and any Sequelize-compatible backend
-* **Scramble Lockout** — blocks affected players from switching for a configurable duration after a TeamBalancer scramble
-* **Switch Queue** — players waiting for a balance slot are queued and automatically switched when a partner or slot opens
-* **End-of-Match Switches** — queue players for automatic team switching at round end
-* **Double-Switch** — swap to opposite team and back to fix game bugs without changing teams
-* **Liberał Mode Support** — relaxed switching rules during Seed/Jensen rounds
-* **Dynamic Balance Tolerance** — interpolated extra imbalance slots when server is below full capacity
-* **In-Game & Discord Admin Commands** — full admin controls via chat or Discord
+### User (In-Game)
 
----
+| Command | Description |
+|---|---|
+| `!switch` | Request a team change (checks balance, cooldowns, scramble locks) |
+| `!switch help` | In-game warning popup explaining eligibility rules |
+
+### Admin (In-Game)
+
+| Command | Description |
+|---|---|
+| `!switch now <Name/EOSID>` | Force-switch a player immediately |
+| `!switch double <Name/EOSID>` | Double-switch a player (swap to opposite team and back) |
+| `!switch squad <squadID> <teamID>` | Switch an entire squad to the specified team |
+| `!switch doublesquad <squadID> <teamID>` | Double-switch an entire squad |
+| `!switch matchend <Name/EOSID>` | Queue a player for automatic switch at match end |
+| `!switch matchendsquad <squadID> <teamID>` | Queue a squad for automatic switch at match end |
+| `!switch triggermatchend` | Manually trigger the match-end switch sequence |
+| `!switch check <Name/EOSID>` | Real-time eligibility lookup for a player |
+| `!switch clear <Name/EOSID>` | Remove cooldowns/locks for a player |
+| `!switch clearall` | Wipe the entire cooldown database |
+| `!switch refresh` | Refresh player and squad lists from RCON |
+| `!switch slots` | Show available switch slots per team |
+| `!switch help` | List all admin commands |
+
+### Discord
+
+| Command | Description |
+|---|---|
+| `!switch diag` | System diagnostics — database health, RCON latency, top 10 locked players |
+| `!switch check <Name/EOSID>` | Real-time eligibility lookup for a player |
 
 ## Compatible / Recommended Plugins
 
@@ -104,23 +134,40 @@ Add the following to your SquadJS `config.json`:
 
 ### 2. File Placement
 
-Move the project files into your SquadJS directory:
+**Required:**
+- `database` — Sequelize connector (typically `"sqlite"`)
 
-```
-squad-server/
-├── plugins/
-│   └── discord-base-plugin.js      (if not already present)
-├── squadjs-switch-teambalancer-aware/
-│   └── switch.js
-```
+**Optional:**
+- `commandPrefix` — command(s) to trigger switch (string or array). Default: `["!switch", "!change"]`
+- `discordClient` — Discord connector name for Discord commands. Default: none
+- `discordChannelID` — Discord channel ID for admin commands and diagnostics. Default: none
 
-Or, if placing directly in the plugins directory:
+**Double Switch:**
+- `doubleSwitchCommands` — commands that swap player to opposite team and back (fixes bugs without changing teams). Default: `[]`
+- `doubleSwitchCooldownHours` — cooldown for double switch commands. Default: `0.5`
+- `doubleSwitchDelaySeconds` — delay between first and second swap. Default: `1`
+- `doubleSwitchEnabledMinutes` — time window for double switch. Default: `5`
 
-```
-squad-server/
-└── plugins/
-    └── switch.js
-```
+**Liberal Mode (Seed/Jensen):**
+- `liberalSwitchGameModes` — array of mode name substrings that trigger relaxed switching. Default: `["Seed", "Jensen"]`
+- `liberalSwitchMaxUnbalancedSlots` — relaxed balance cap used in liberal mode. Default: `6`
+
+**Dynamic Balance Tolerance:**
+- `dynamicBalanceTolerance` — enable interpolated extra switch slots that scale down as player count rises. Default: `false`
+- `dynamicBalancePlayerFloor` — player count below which full extra slots apply. Default: `90`
+- `dynamicBalanceExtraSlots` — maximum extra tolerance slots at the floor. Default: `2`
+
+**Advanced:**
+- `endMatchSwitchSlots` — queue size for end-of-round switches. Default: `3`
+- `switchToOldTeamAfterRejoin` — auto-switch rejoining players to their pre-disconnect team. Default: `false`
+- `scrambleLockdownDurationMinutes` — blocks all players from switching after scramble. Default: `20`
+
+## TeamBalancer Integration
+
+Works with **[Slacker's Team Balancer Plugin](https://github.com/mikebjoyce/squadjs-team-balancer)**:
+- Listens for `TEAM_BALANCER_SCRAMBLE_EXECUTED` event
+- Adds scrambled players to database with `scrambleLockdownExpiry` timestamp
+- Prevents players from changing teams immediately following a team balancer scramble
 
 ---
 
