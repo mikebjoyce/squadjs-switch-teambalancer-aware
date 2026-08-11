@@ -1,0 +1,36 @@
+version: '3.8'
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: squadjs_test_mysql
+    ports:
+      - "3307:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: squadjs_test
+      MYSQL_DATABASE: squadjs_test
+      MYSQL_USER: squadjs
+      MYSQL_PASSWORD: squadjs_test
+    command: --default-authentication-plugin=mysql_native_password
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-psquadjs_test"]
+      interval: 5s
+      timeout: 10s
+      retries: 10
+      start_period: 20s
+
+  postgres:
+    image: postgres:16
+    container_name: squadjs_test_postgres
+    ports:
+      - "5433:5432"
+    environment:
+      POSTGRES_USER: squadjs
+      POSTGRES_PASSWORD: squadjs_test
+      POSTGRES_DB: squadjs_test
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U squadjs -d squadjs_test"]
+      interval: 5s
+      timeout: 10s
+      retries: 10
+      start_period: 10s

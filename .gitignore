@@ -1,1 +1,8 @@
-*.md
+**.*
+!switch.js
+!base-plugin.js
+!discord-base-plugin.js
+!README.MD
+!test/TEST_README.md
+!.gitignore
+!test/**
