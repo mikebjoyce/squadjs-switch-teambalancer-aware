@@ -6,37 +6,54 @@
 
 Manages player team-change requests with cooldown enforcement and admin restrictions. Survives server restarts via any Sequelize-compatible database (SQLite, MySQL, PostgreSQL, etc.). Responds to team scrambles by locking all players from switching.
 
----
-
-> [!IMPORTANT]
-> **This repository has moved.** Active development (S³-integrated) continues at the monorepo:
-> **[squadjs-slackers-suite](https://github.com/mikebjoyce/squadjs-slackers-suite)**
->
-> The `legacy` branch here is the **pre-S³** line — maintained for users who don't run S³.
-> The `main` branch (and any S³-integration branch) is superseded by the monorepo copy.
-> For new installations, use the monorepo's [install script](https://github.com/mikebjoyce/squadjs-slackers-suite) instead.
-
----
-
 ## Features
 
 * **Persistent cooldowns** — stored in configured database, survive restarts
 * **Multi-database support** — works with SQLite, MySQL, PostgreSQL, and any Sequelize-compatible backend
 * **Scramble lockout** — blocks all players from switching for configurable duration after scramble
+* **Liberal mode** — relaxed cooldown/time limits on Seed/Jensen layers for low-population flexibility
+* **Dynamic balance tolerance** — interpolated extra switch slots that scale down as player count rises
+* **50v50 ceiling** — prevents any team from exceeding 50 players via switch
+* **Match-end switch queue** — queue individual players or entire squads for automatic switch at round end
+* **Double switch** — `!bug` / `!stuck` commands swap a player to the opposite team and back (fixes stuck/bugged states without changing teams)
+* **Squad-level operations** — switch, double-switch, or queue entire squads in one command
+* **Pre-disconnection team rejoining** — optionally auto-switch players back to their old team on reconnect
+* **Null-teamID safety window** — gates switch commands during round transitions when team assignments are still resolving
 * **Admin controls** — in-game chat and Discord
 
 ## Commands
 
-### User
-* `!switch` — request team change (checks balance, cooldowns, locks)
-* `!switch help` — in-game warning popup explaining eligibility
+### User (In-Game)
 
-### Admin (Discord & In-Game)
-* `!switch diag` — database health + top 10 players by remaining lock time
-* `!switch check <Name/SteamID>` — real-time eligibility lookup
-* `!switch clear <Name/SteamID>` — remove cooldowns/locks for player
-* `!switch clearall` — wipe entire cooldown database
-* `!switch help` — list all admin commands
+| Command | Description |
+|---|---|
+| `!switch` | Request a team change (checks balance, cooldowns, scramble locks) |
+| `!switch help` | In-game warning popup explaining eligibility rules |
+
+### Admin (In-Game)
+
+| Command | Description |
+|---|---|
+| `!switch now <Name/EOSID>` | Force-switch a player immediately |
+| `!switch double <Name/EOSID>` | Double-switch a player (swap to opposite team and back) |
+| `!switch squad <squadID> <teamID>` | Switch an entire squad to the specified team |
+| `!switch doublesquad <squadID> <teamID>` | Double-switch an entire squad |
+| `!switch matchend <Name/EOSID>` | Queue a player for automatic switch at match end |
+| `!switch matchendsquad <squadID> <teamID>` | Queue a squad for automatic switch at match end |
+| `!switch triggermatchend` | Manually trigger the match-end switch sequence |
+| `!switch check <Name/EOSID>` | Real-time eligibility lookup for a player |
+| `!switch clear <Name/EOSID>` | Remove cooldowns/locks for a player |
+| `!switch clearall` | Wipe the entire cooldown database |
+| `!switch refresh` | Refresh player and squad lists from RCON |
+| `!switch slots` | Show available switch slots per team |
+| `!switch help` | List all admin commands |
+
+### Discord
+
+| Command | Description |
+|---|---|
+| `!switch diag` | System diagnostics — database health, RCON latency, top 10 locked players |
+| `!switch check <Name/EOSID>` | Real-time eligibility lookup for a player |
 
 ## Configuration
 
@@ -58,21 +75,24 @@ Manages player team-change requests with cooldown enforcement and admin restrict
     "endMatchSwitchSlots": 3,
     "maxUnbalancedSlots": 5,
     "switchToOldTeamAfterRejoin": false,
-    "scrambleLockdownDurationMinutes": 20
+    "scrambleLockdownDurationMinutes": 20,
+    "liberalModes": ["seed", "jensen"],
+    "liberalSwitchMaxUnbalancedSlots": 10,
+    "dynamicBalanceTolerance": false,
+    "dynamicBalancePlayerFloor": 40,
+    "dynamicBalanceExtraSlots": 3
 }
 ```
 
 **Configuration Options:**
 
 **Required:**
-- `plugin` — must be `"Switch"`
-- `enabled` — `true` to enable plugin
 - `database` — Sequelize connector (typically `"sqlite"`)
 
 **Optional:**
 - `commandPrefix` — command(s) to trigger switch (string or array). Default: `["!switch", "!change"]`
 - `discordClient` — Discord connector name for Discord commands. Default: none
-- `discordChannelID` — Discord channel ID for admin commands and logs. Default: none
+- `discordChannelID` — Discord channel ID for admin commands and diagnostics. Default: none
 
 **Switch Behavior:**
 - `switchCooldownHours` — hours before player can switch again. Default: `3`
@@ -85,6 +105,15 @@ Manages player team-change requests with cooldown enforcement and admin restrict
 - `doubleSwitchCooldownHours` — cooldown for double switch commands. Default: `0.5`
 - `doubleSwitchDelaySeconds` — delay between first and second swap. Default: `1`
 - `doubleSwitchEnabledMinutes` — time window for double switch. Default: `5`
+
+**Liberal Mode (Seed/Jensen):**
+- `liberalModes` — array of mode name substrings that trigger relaxed switching. Default: `["seed", "jensen"]`
+- `liberalSwitchMaxUnbalancedSlots` — relaxed balance cap used in liberal mode. Default: `10`
+
+**Dynamic Balance Tolerance:**
+- `dynamicBalanceTolerance` — enable interpolated extra switch slots that scale down as player count rises. Default: `false`
+- `dynamicBalancePlayerFloor` — player count below which full extra slots apply. Default: `40`
+- `dynamicBalanceExtraSlots` — maximum extra tolerance slots at the floor. Default: `3`
 
 **Advanced:**
 - `endMatchSwitchSlots` — queue size for end-of-round switches. Default: `3`
