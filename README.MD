@@ -14,9 +14,9 @@ Manages player team-change requests with cooldown enforcement and admin restrict
 * **Liberal mode** — relaxed cooldown/time limits on Seed/Jensen layers for low-population flexibility
 * **Dynamic balance tolerance** — interpolated extra switch slots that scale down as player count rises
 * **50v50 ceiling** — prevents any team from exceeding 50 players via switch
-* **Match-end switch queue** — queue individual players or entire squads for automatic switch at round end
+* **Match-end scheduling** — schedule individual players or entire squads for automatic switch at round end
 * **Double switch** — `!bug` / `!stuck` commands swap a player to the opposite team and back (fixes stuck/bugged states without changing teams)
-* **Squad-level operations** — switch, double-switch, or queue entire squads in one command
+* **Squad-level operations** — switch, double-switch, or schedule entire squads in one command
 * **Pre-disconnection team rejoining** — optionally auto-switch players back to their old team on reconnect
 * **Admin controls** — in-game chat and Discord
 
@@ -33,15 +33,15 @@ Manages player team-change requests with cooldown enforcement and admin restrict
 
 | Command | Description |
 |---|---|
-| `!switch now <Name/EOSID>` | Force-switch a player immediately |
-| `!switch double <Name/EOSID>` | Double-switch a player (swap to opposite team and back) |
+| `!switch now <Name/EOSID/SteamID>` | Force-switch a player immediately |
+| `!switch double <Name/EOSID/SteamID>` | Double-switch a player (swap to opposite team and back) |
 | `!switch squad <squadID> <teamID>` | Switch an entire squad to the specified team |
 | `!switch doublesquad <squadID> <teamID>` | Double-switch an entire squad |
-| `!switch matchend <Name/EOSID>` | Queue a player for automatic switch at match end |
-| `!switch matchendsquad <squadID> <teamID>` | Queue a squad for automatic switch at match end |
+| `!switch matchend <Name/EOSID/SteamID>` | Schedule a player for automatic switch at match end |
+| `!switch matchendsquad <squadID> <teamID>` | Schedule a squad for automatic switch at match end |
 | `!switch triggermatchend` | Manually trigger the match-end switch sequence |
-| `!switch check <Name/EOSID>` | Real-time eligibility lookup for a player |
-| `!switch clear <Name/EOSID>` | Remove cooldowns/locks for a player |
+| `!switch check <Name/EOSID/SteamID>` | Real-time eligibility lookup for a player |
+| `!switch clear <Name/EOSID/SteamID>` | Remove cooldowns/locks for a player |
 | `!switch clearall` | Wipe the entire cooldown database |
 | `!switch refresh` | Refresh player and squad lists from RCON |
 | `!switch slots` | Show available switch slots per team |
@@ -52,7 +52,7 @@ Manages player team-change requests with cooldown enforcement and admin restrict
 | Command | Description |
 |---|---|
 | `!switch diag` | System diagnostics — database health, RCON latency, top 10 locked players |
-| `!switch check <Name/EOSID>` | Real-time eligibility lookup for a player |
+| `!switch check <Name/EOSID/SteamID>` | Real-time eligibility lookup for a player |
 
 ## Configuration
 
@@ -71,9 +71,9 @@ Manages player team-change requests with cooldown enforcement and admin restrict
     "doubleSwitchCooldownHours": 0.5,
     "doubleSwitchDelaySeconds": 1,
     "doubleSwitchEnabledMinutes": 5,
-    "endMatchSwitchSlots": 3,
     "maxUnbalancedSlots": 5,
     "switchToOldTeamAfterRejoin": false,
+    "scrambleLockdownEnabled": true,
     "scrambleLockdownDurationMinutes": 20,
     "liberalSwitchGameModes": ["Seed", "Jensen"],
     "liberalSwitchMaxUnbalancedSlots": 6,
@@ -96,14 +96,14 @@ Manages player team-change requests with cooldown enforcement and admin restrict
 **Switch Behavior:**
 - `switchCooldownHours` — hours before player can switch again. Default: `3`
 - `switchCooldownMinutes` — overrides `switchCooldownHours` if set. Default: `0` (which causes `switchCooldownHours` to be used)
-- `switchEnabledMinutes` — time window after match start or player join to allow switches. Default: `5`
+- `switchEnabledMinutes` — time window after match start or player join to allow switches. Set to `0` to disable this time restriction entirely. Default: `5`
 - `maxUnbalancedSlots` — max player difference between teams to allow switch. Default: `3`
 
 **Double Switch:**
 - `doubleSwitchCommands` — commands that swap player to opposite team and back (fixes bugs without changing teams). Default: `[]`
 - `doubleSwitchCooldownHours` — cooldown for double switch commands. Default: `0.5`
 - `doubleSwitchDelaySeconds` — delay between first and second swap. Default: `1`
-- `doubleSwitchEnabledMinutes` — time window for double switch. Default: `5`
+- `doubleSwitchEnabledMinutes` — time window for double switch. Set to `0` to disable this time restriction entirely. Default: `5`
 
 **Liberal Mode (Seed/Jensen):**
 - `liberalSwitchGameModes` — array of mode name substrings that trigger relaxed switching. Default: `["Seed", "Jensen"]`
@@ -115,16 +115,17 @@ Manages player team-change requests with cooldown enforcement and admin restrict
 - `dynamicBalanceExtraSlots` — maximum extra tolerance slots at the floor. Default: `2`
 
 **Advanced:**
-- `endMatchSwitchSlots` — queue size for end-of-round switches. Default: `3`
 - `switchToOldTeamAfterRejoin` — auto-switch rejoining players to their pre-disconnect team. Default: `false`
+- `scrambleLockdownEnabled` — whether a detected scramble triggers the switch lockdown below. Set to `false` if you run your own scramble-emitting plugin but don't want it to lock out switching. Default: `true`
 - `scrambleLockdownDurationMinutes` — blocks all players from switching after scramble. Default: `20`
 
 ## TeamBalancer Integration
 
-Works with **[Slacker's Team Balancer Plugin](https://github.com/mikebjoyce/squadjs-team-balancer)**:
-- Listens for `TEAM_BALANCER_SCRAMBLE_EXECUTED` event
+Optionally integrates with a team balancer plugin that emits a custom `TEAM_BALANCER_SCRAMBLE_EXECUTED` event (not part of base SquadJS) — this listener is inert unless something in your plugin stack actually emits it:
+- Listens for `TEAM_BALANCER_SCRAMBLE_EXECUTED`
 - Adds scrambled players to database with `scrambleLockdownExpiry` timestamp
 - Prevents players from changing teams immediately following a team balancer scramble
+- Set `scrambleLockdownEnabled: false` to keep the listener wired without enforcing the lockout
 
 ---
 
